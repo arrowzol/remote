@@ -1,0 +1,6 @@
+**/*.jar
+**/*.class
+.idea
+**/out
+**/*.pfx
+**/*.jks
