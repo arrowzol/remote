@@ -9,18 +9,11 @@ import java.nio.charset.StandardCharsets;
 public class MockAgentBase implements Agent {
     public Writer writer;
 
-    public int registerWriterCount;
     public int closeAgentCount;
     public int goCountFirst;
     public int goCountSecond;
     public int head;
     public byte[] contents = new byte[1024];
-
-    @Override
-    public void registerWriter(Writer writer) {
-        this.writer = writer;
-        registerWriterCount++;
-    }
 
     public void write(String testMessage) throws IOException {
         byte[] testBytes = testMessage.getBytes(StandardCharsets.UTF_8);
@@ -45,7 +38,8 @@ public class MockAgentBase implements Agent {
     }
 
     @Override
-    public void go(MultiplexTunnel multiplexTunnel, boolean isServer, boolean first) {
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
+        this.writer = writer;
         if (first) {
             goCountFirst++;
         } else {

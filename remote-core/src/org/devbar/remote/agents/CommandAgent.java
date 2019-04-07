@@ -9,16 +9,18 @@ import java.util.Scanner;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class CommandAgent extends BasicAgent implements KeyboardReader {
+public class CommandAgent implements Agent, KeyboardReader {
 
     private boolean isServer;
     private int kbdId;
     private MultiplexTunnel multiplexTunnel;
+    private Writer writer;
     private SortedMap<String, SocketListener> listeners = new TreeMap();
 
     @Override
-    public void go(MultiplexTunnel multiplexTunnel, boolean isServer, boolean first) {
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
         this.multiplexTunnel = multiplexTunnel;
+        this.writer = writer;
         this.isServer = isServer;
         if (isServer) {
             kbdId = Keyboard.kbd.register(this, "Command");
@@ -38,8 +40,8 @@ public class CommandAgent extends BasicAgent implements KeyboardReader {
     }
 
     @Override
-    public boolean keyboardInput(String line) {
-        if (isClosed) {
+    public synchronized boolean keyboardInput(String line) {
+        if (writer == null) {
             return false;
         }
         try {
@@ -79,8 +81,11 @@ public class CommandAgent extends BasicAgent implements KeyboardReader {
     }
 
     @Override
-    public void closeAgent() {
-        super.closeAgent();
-        Keyboard.kbd.unregister(kbdId);
+    public synchronized void closeAgent() {
+        if (writer != null) {
+            writer.closeWriter();
+            writer = null;
+            Keyboard.kbd.unregister(kbdId);
+        }
     }
 }

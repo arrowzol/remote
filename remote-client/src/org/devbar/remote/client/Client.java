@@ -21,11 +21,11 @@ public class Client {
         SSLSocket socket =(SSLSocket)factory.createSocket(Constants.HOST, Constants.PORT);
         socket.startHandshake();
 
-        Tunnel tunnel = new SocketTunnel(socket);
-        tunnel.registerAgent(new MultiplexTunnel(false, 0));
+        Tunnel tunnel = new SocketTunnel(socket, false);
+        tunnel.registerAgent(new MultiplexTunnel(0));
     }
 
-    public static SSLContext getSslContext() throws Exception {
+    private static SSLContext getSslContext() throws Exception {
         // set up key manager to do server authentication
         char[] passphrase = "changeit".toCharArray();
 

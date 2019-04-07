@@ -23,16 +23,16 @@ public class MockMultiplexSystem {
         MockAgentX.agents.clear();
         MockAgentY.agents.clear();
 
-        testTunnelA = new MultiplexTunnel(true, 0);
-        testTunnelB = new MultiplexTunnel(false, 0);
+        testTunnelA = new MultiplexTunnel(0);
+        testTunnelB = new MultiplexTunnel(0);
 
         // Mock master writer
 
         Writer masterWriterA = mock(Writer.class);
         Writer masterWriterB = mock(Writer.class);
 
-        testTunnelA.registerWriter(masterWriterA);
-        testTunnelB.registerWriter(masterWriterB);
+        testTunnelA.init(null, masterWriterA, true, true);
+        testTunnelB.init(null, masterWriterB, false, false);
 
         doAnswer((Answer) invocation -> {
             byte[] buffer = invocation.getArgument(0);

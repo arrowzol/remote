@@ -20,35 +20,32 @@ public class MultiplexTunnelTest extends MockMultiplexSystem {
             quiescent(chunkSize);
 
 
-            assertEquals(2, MockAgentX.agents.size(), "chunk " + chunkSize);
-            assertEquals(2, MockAgentY.agents.size(), "chunk " + chunkSize);
+            String assertContext = "chunk " + chunkSize;
+            assertEquals(2, MockAgentX.agents.size(), assertContext);
+            assertEquals(2, MockAgentY.agents.size(), assertContext);
 
             MockAgentX agent2X = MockAgentX.agents.get(1);
             MockAgentY agent2Y = MockAgentY.agents.get(1);
 
-            assertEquals(1, agent1X.registerWriterCount, "chunk " + chunkSize);
-            assertEquals(0, agent1X.closeAgentCount, "chunk " + chunkSize);
-            assertEquals(1, agent1X.goCountFirst, "chunk " + chunkSize);
-            assertEquals(0, agent1X.goCountSecond, "chunk " + chunkSize);
-            assertEquals(0, agent1X.head, "chunk " + chunkSize);
+            assertEquals(0, agent1X.closeAgentCount, assertContext);
+            assertEquals(1, agent1X.goCountFirst, assertContext);
+            assertEquals(0, agent1X.goCountSecond, assertContext);
+            assertEquals(0, agent1X.head, assertContext);
 
-            assertEquals(1, agent2X.registerWriterCount, "chunk " + chunkSize);
-            assertEquals(0, agent2X.closeAgentCount, "chunk " + chunkSize);
-            assertEquals(0, agent2X.goCountFirst, "chunk " + chunkSize);
-            assertEquals(1, agent2X.goCountSecond, "chunk " + chunkSize);
-            assertEquals(0, agent2X.head, "chunk " + chunkSize);
+            assertEquals(0, agent2X.closeAgentCount, assertContext);
+            assertEquals(0, agent2X.goCountFirst, assertContext);
+            assertEquals(1, agent2X.goCountSecond, assertContext);
+            assertEquals(0, agent2X.head, assertContext);
 
-            assertEquals(1, agent1Y.registerWriterCount, "chunk " + chunkSize);
-            assertEquals(0, agent1Y.closeAgentCount, "chunk " + chunkSize);
-            assertEquals(1, agent1Y.goCountFirst, "chunk " + chunkSize);
-            assertEquals(0, agent1Y.goCountSecond, "chunk " + chunkSize);
-            assertEquals(0, agent1Y.head, "chunk " + chunkSize);
+            assertEquals(0, agent1Y.closeAgentCount, assertContext);
+            assertEquals(1, agent1Y.goCountFirst, assertContext);
+            assertEquals(0, agent1Y.goCountSecond, assertContext);
+            assertEquals(0, agent1Y.head, assertContext);
 
-            assertEquals(1, agent2Y.registerWriterCount, "chunk " + chunkSize);
-            assertEquals(0, agent2Y.closeAgentCount, "chunk " + chunkSize);
-            assertEquals(0, agent2Y.goCountFirst, "chunk " + chunkSize);
-            assertEquals(1, agent2Y.goCountSecond, "chunk " + chunkSize);
-            assertEquals(0, agent2Y.head, "chunk " + chunkSize);
+            assertEquals(0, agent2Y.closeAgentCount, assertContext);
+            assertEquals(0, agent2Y.goCountFirst, assertContext);
+            assertEquals(1, agent2Y.goCountSecond, assertContext);
+            assertEquals(0, agent2Y.head, assertContext);
 
             String testString1 = "abcdefg";
             String testString2 = "12345";

@@ -14,11 +14,18 @@ public class SocketTunnel extends Thread implements Tunnel {
     private final InputStream is;
     private final OutputStream os;
     private Agent agent;
+    private boolean isServer;
 
-    public SocketTunnel(Socket s) throws IOException {
+    public SocketTunnel(Socket s, boolean isServer) throws IOException {
+        this.isServer = isServer;
         this.s = s;
         is = s.getInputStream();
         os = s.getOutputStream();
+    }
+
+    @Override
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
+        // never called
     }
 
     @Override
@@ -50,8 +57,7 @@ public class SocketTunnel extends Thread implements Tunnel {
         }
 
         this.agent = agent;
-        agent.registerWriter(this);
-        agent.go(null, false, true);
+        agent.init(null, this, isServer, isServer);
 
         this.setName("Socket Reader " + i++);
         this.start();
@@ -63,12 +69,7 @@ public class SocketTunnel extends Thread implements Tunnel {
     }
 
     @Override
-    public void registerWriter(Writer writer) {
-        throw new RuntimeException("Should never be called");
-    }
-
-    @Override
-    public void write(byte[] buffer, int off, int len) throws IOException {
+    public synchronized void write(byte[] buffer, int off, int len) throws IOException {
         os.write(buffer, off, len);
     }
 

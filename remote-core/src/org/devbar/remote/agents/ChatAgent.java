@@ -7,13 +7,15 @@ import org.devbar.remote.tunnels.MultiplexTunnel;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class ChatAgent extends BasicAgent implements KeyboardReader {
+public class ChatAgent implements Agent, KeyboardReader {
 
     private int keyId;
     private boolean hasFocus;
+    private Writer writer;
 
     @Override
-    public void go(MultiplexTunnel multiplexTunnel, boolean isServer, boolean first) {
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
+        this.writer = writer;
         keyId = Keyboard.kbd.register(this, "Chat");
     }
 
@@ -41,8 +43,8 @@ public class ChatAgent extends BasicAgent implements KeyboardReader {
     }
 
     @Override
-    public boolean keyboardInput(String line) {
-        if (isClosed) {
+    public synchronized boolean keyboardInput(String line) {
+        if (writer == null) {
             return false;
         }
         if (line.equals("bye")) {
@@ -52,7 +54,7 @@ public class ChatAgent extends BasicAgent implements KeyboardReader {
             try {
                 writer.write(buffer, 0, buffer.length);
             } catch (IOException e) {
-                writer.closeWriter();
+                closeAgent();
             }
             if (hasFocus) {
                 System.out.print(": ");
@@ -62,8 +64,11 @@ public class ChatAgent extends BasicAgent implements KeyboardReader {
     }
 
     @Override
-    public void closeAgent() {
-        super.closeAgent();
-        Keyboard.kbd.unregister(keyId);
+    public synchronized void closeAgent() {
+        if (writer != null) {
+            writer.closeWriter();
+            writer = null;
+            Keyboard.kbd.unregister(keyId);
+        }
     }
 }

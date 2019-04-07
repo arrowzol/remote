@@ -27,9 +27,10 @@ public class MultiplexTunnel implements Tunnel {
     private static final byte CMD_AGENT_NEW_ACK2 = 4;
 
     private Writer masterWriter;
+    private boolean isServer;
 
-    private final int startChannel;
-    private final int endChannel;
+    private int startChannel;
+    private int endChannel;
     private int nextChannel;
     private final ConcurrentMap<Integer, Agent> agents;
 
@@ -41,16 +42,7 @@ public class MultiplexTunnel implements Tunnel {
     private byte[] consumerBuffer;
 
 
-    public MultiplexTunnel(boolean isServer, int bufferSize) {
-        if (isServer) {
-            startChannel = 1;
-            endChannel = MAX_CHANNELS/2;
-        } else {
-            startChannel = MAX_CHANNELS/2;
-            endChannel = MAX_CHANNELS;
-        }
-        nextChannel = startChannel;
-
+    public MultiplexTunnel(int bufferSize) {
         if (bufferSize < CMD_BYTES) {
             bufferSize = CMD_BYTES;
         }
@@ -59,14 +51,12 @@ public class MultiplexTunnel implements Tunnel {
         agents = new ConcurrentHashMap<>();
         agents.put(0, new Agent() {
             @Override
-            public void registerWriter(Writer writer) {
-            }
-
-            @Override
             public void consume(byte[] buffer, int off, int len) {
-                int channel = Bytes.read(buffer, off + 1, CHANNEL_BYTES);
-                int agentId = Bytes.read(buffer, off + 1 + CHANNEL_BYTES, AGENT_BYTES);
-                switch (buffer[off]) {
+                Bytes bytes = new Bytes(buffer, off, len);
+                int cmd = bytes.readInt(1);
+                int channel = bytes.readInt(CHANNEL_BYTES);
+                int agentId = bytes.readInt(AGENT_BYTES);
+                switch (cmd) {
                     case CMD_AGENT_KILL: {
                         Agent agent = agents.get(channel);
                         if (agent != null) {
@@ -82,7 +72,6 @@ public class MultiplexTunnel implements Tunnel {
                         Agent agent = AgentFactory.agentFactory.createAgent(agentId);
                         if (agent != null) {
                             agents.put(channel, agent);
-                            attachWriterToAgent(agent, channel);
                             sendCmd(CMD_AGENT_NEW_ACK1, channel, 0);
                         }
                         break;
@@ -90,12 +79,12 @@ public class MultiplexTunnel implements Tunnel {
                     case CMD_AGENT_NEW_ACK1: {
                         Agent agent = agents.get(channel);
                         sendCmd(CMD_AGENT_NEW_ACK2, channel, 0);
-                        agent.go(MultiplexTunnel.this, isServer, true);
+                        agent.init(MultiplexTunnel.this, createWriter(channel), isServer, true);
                         break;
                     }
                     case CMD_AGENT_NEW_ACK2: {
                         Agent agent = agents.get(channel);
-                        agent.go(MultiplexTunnel.this, isServer, false);
+                        agent.init(MultiplexTunnel.this, createWriter(channel), isServer, false);
                         break;
                     }
                 }
@@ -103,6 +92,10 @@ public class MultiplexTunnel implements Tunnel {
 
             @Override
             public void closeAgent() {
+            }
+
+            @Override
+            public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
             }
         });
     }
@@ -114,12 +107,12 @@ public class MultiplexTunnel implements Tunnel {
         byte[] command = new byte[HEADER_BYTES + CMD_BYTES];
 
         // Header of message: channel 0 (by default), length
-        Bytes.write(command, CHANNEL_BYTES, LENGTH_BYTES, CMD_BYTES);
+        Bytes.writeInt(command, CHANNEL_BYTES, LENGTH_BYTES, CMD_BYTES);
 
         // Body of message: command + channel + agentId
         command[HEADER_BYTES] = cmd;
-        Bytes.write(command, HEADER_BYTES + 1, CHANNEL_BYTES, channel);
-        Bytes.write(command, HEADER_BYTES + 1 + CHANNEL_BYTES, AGENT_BYTES, agentId);
+        Bytes.writeInt(command, HEADER_BYTES + 1, CHANNEL_BYTES, channel);
+        Bytes.writeInt(command, HEADER_BYTES + 1 + CHANNEL_BYTES, AGENT_BYTES, agentId);
 
         synchronized (masterWriter) {
             try {
@@ -141,21 +134,20 @@ public class MultiplexTunnel implements Tunnel {
         } while (agents.containsKey(channel));
 
         agents.put(channel, agent);
-        attachWriterToAgent(agent, channel);
         sendCmd(CMD_AGENT_NEW, channel, AgentFactory.agentFactory.agentId(agent));
     }
 
-    private void attachWriterToAgent(Agent agent, int channel) {
+    private Writer createWriter(int channel) {
         byte[] header = new byte[HEADER_BYTES];
-        Bytes.write(header, 0, CHANNEL_BYTES, channel);
+        Bytes.writeInt(header, 0, CHANNEL_BYTES, channel);
 
-        agent.registerWriter(new Writer() {
+        return new Writer() {
             private boolean open = true;
 
             @Override
-            public void write(byte[] buffer, int start, int len) throws IOException {
+            public synchronized void write(byte[] buffer, int start, int len) throws IOException {
                 if (open) {
-                    Bytes.write(header, CHANNEL_BYTES, LENGTH_BYTES, len);
+                    Bytes.writeInt(header, CHANNEL_BYTES, LENGTH_BYTES, len);
                     synchronized (masterWriter) {
                         masterWriter.write(header, 0, HEADER_BYTES);
                         masterWriter.write(buffer, start, len);
@@ -164,15 +156,14 @@ public class MultiplexTunnel implements Tunnel {
             }
 
             @Override
-            public void closeWriter() {
+            public synchronized void closeWriter() {
                 if (open) {
                     open = false;
                     sendCmd(CMD_AGENT_KILL, channel, 0);
                     sendCmd(CMD_AGENT_DEAD, channel, 0);
                 }
             }
-        });
-
+        };
     }
 
     @Override
@@ -189,8 +180,9 @@ public class MultiplexTunnel implements Tunnel {
                 headerNeeded -= copyLen;
 
                 if (headerNeeded == 0) {
-                    int channel = Bytes.read(consumeHeader, 0, CHANNEL_BYTES);
-                    consumerNeeded = Bytes.read(consumeHeader, CHANNEL_BYTES, LENGTH_BYTES);
+                    Bytes bytes = new Bytes(consumeHeader, 0, 100);
+                    int channel = bytes.readInt(CHANNEL_BYTES);
+                    consumerNeeded = bytes.readInt(LENGTH_BYTES);
                     consumerAgent = agents.get(channel);
                 }
             }
@@ -207,7 +199,7 @@ public class MultiplexTunnel implements Tunnel {
                     consumerNeeded = 0;
                 }
 
-                // If one complete message is in the buffer, send it to the agent
+                // If one complete message is in the copy, send it to the agent
                 else if (consumerBufferHead == 0 && len >= consumerNeeded) {
                     try {
                         consumerAgent.consume(buffer, off, consumerNeeded);
@@ -258,11 +250,6 @@ public class MultiplexTunnel implements Tunnel {
     }
 
     @Override
-    public void registerWriter(Writer writer) {
-        masterWriter = writer;
-    }
-
-    @Override
     public void closeAgent() {
         for (Agent agent : agents.values()) {
             agent.closeAgent();
@@ -270,8 +257,22 @@ public class MultiplexTunnel implements Tunnel {
     }
 
     @Override
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
+        this.isServer = isServer;
+        if (isServer) {
+            startChannel = 1;
+            endChannel = MAX_CHANNELS/2;
+        } else {
+            startChannel = MAX_CHANNELS/2;
+            endChannel = MAX_CHANNELS;
+        }
+        nextChannel = startChannel;
+        this.masterWriter = writer;
+    }
+
+    @Override
     public void closeWriter() {
-        masterWriter.closeWriter();
+        throw new RuntimeException("Should never happen");
     }
 
     @Override

@@ -13,7 +13,7 @@ import java.security.KeyStore;
 public class Server {
 
     public static void main(String[] argv) throws Exception {
-        SSLContext ctx = getSslContext("/Users/devbar/server");
+        SSLContext ctx = getSslContext();
         SSLServerSocketFactory ssf = ctx.getServerSocketFactory();
         SSLServerSocket ss = (SSLServerSocket) ssf.createServerSocket(Constants.PORT);
 //        ss.setNeedClientAuth(true);
@@ -25,8 +25,8 @@ public class Server {
                 socket.setSSLParameters(sslParams);
                 socket.startHandshake();
                 System.out.println("Accept");
-                Tunnel socketTunnel = new SocketTunnel(socket);
-                MultiplexTunnel multiplexTunnel = new MultiplexTunnel(true, 0);
+                Tunnel socketTunnel = new SocketTunnel(socket, true);
+                MultiplexTunnel multiplexTunnel = new MultiplexTunnel(0);
                 socketTunnel.registerAgent(multiplexTunnel);
                 multiplexTunnel.registerAgent(new CommandAgent());
                 multiplexTunnel.registerAgent(new ChatAgent());
@@ -36,7 +36,7 @@ public class Server {
         }
     }
 
-    public static SSLContext getSslContext(String docroot) throws Exception {
+    private static SSLContext getSslContext() throws Exception {
         // set up key manager to do server authentication
         char[] passphrase = "changeit".toCharArray();
 
@@ -45,7 +45,7 @@ public class Server {
         try (InputStream keyInput =
                      Thread.currentThread().getContextClassLoader().getResourceAsStream("server-key.pfx")) {
             if (keyInput == null) {
-                throw new RuntimeException("Can't read server-key.pfx");
+                throw new RuntimeException("Can't readInt server-key.pfx");
             }
             kmks.load(keyInput, passphrase);
         }

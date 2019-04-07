@@ -11,6 +11,7 @@ import java.net.Socket;
 
 public class PortForwardAgent extends Thread implements Agent {
 
+    public static final int PORT_BYTES = 4;
     private Writer writer;
 
     private Socket socket;
@@ -31,10 +32,11 @@ public class PortForwardAgent extends Thread implements Agent {
     }
 
     @Override
-    public void go(MultiplexTunnel multiplexTunnel, boolean isServer, boolean first) {
+    public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
+        this.writer = writer;
         if (first) {
             byte[] portAsBytes = new byte[4];
-            Bytes.write(portAsBytes, 0, 4, remotePort);
+            Bytes.writeInt(portAsBytes, 0, PORT_BYTES, remotePort);
             try {
                 writer.write(portAsBytes);
             } catch (IOException e) {
@@ -58,6 +60,7 @@ public class PortForwardAgent extends Thread implements Agent {
                 writer.write(buffer, 0, len);
             }
         } catch (IOException e) {
+            // ignore
         } finally {
             closeAgent();
         }
@@ -70,7 +73,8 @@ public class PortForwardAgent extends Thread implements Agent {
                     os.write(buffer, off, len);
             } else {
                 started = true;
-                remotePort = Bytes.read(buffer, off, len);
+                Bytes bytes = new Bytes(buffer, off, PORT_BYTES);
+                remotePort = bytes.readInt(len);
                 SocketFactory sf = SocketFactory.getDefault();
                 socket = sf.createSocket("localhost", remotePort);
                 is = socket.getInputStream();
@@ -85,21 +89,26 @@ public class PortForwardAgent extends Thread implements Agent {
     }
 
     @Override
-    public void registerWriter(Writer writer) {
-        this.writer = writer;
-    }
-
-    @Override
     public synchronized void closeAgent() {
-        writer.closeWriter();
-        this.interrupt();
-        if (socket != null) {
+        if (writer != null) {
+            writer.closeWriter();
+            writer = null;
+            this.interrupt();
+            try {
+                is.close();
+            } catch (IOException e) {
+                // ignore
+            }
+            try {
+                os.close();
+            } catch (IOException e) {
+                // ignore
+            }
             try {
                 socket.close();
             } catch (IOException e) {
                 // ignore
             }
-            socket = null;
         }
     }
 }

@@ -2,24 +2,36 @@ package org.devbar.remote.agents;
 
 import org.devbar.remote.tunnels.MultiplexTunnel;
 
+/** An agent abstracts pairs of communications channels.
+ *
+ * Agents come in pairs, one on each side of the client-server system.  When an agent is created on one side, a
+ * corresponding agent is created on the other side and communications between the two is done by calling the writer's
+ * {@link Writer#write(byte[], int, int)} method, which is delivered by calling the {@link #consume(byte[], int, int)}
+ * method on the other side.  Bytes are not guaranteed to be delivered without being split into multiple consume events.
+ */
 public interface Agent {
-    /** Register a writer.
+    /** Initialize the agent.
      *
-     * Called before anything else to register a writer to send bytes to the remote agent.
+     * After initialization, the agent can start operating.
+     *
+     * @param multiplexTunnel The multiplexTunnel in charge, can be null if there is none.
+     * @param writer The writer this agent should use.
+     * @param isServer This agent was created in the server.
+     * @param first This agent was the first of the pair created.
      */
-    void registerWriter(Writer writer);
+    void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first);
 
-    /** Consume bytes from the remote agent.
+    default boolean needBuffering() { return false; }
+
+    /** Consume bytes sent from the remote agent.
      *
-     * Deliver bytes from the remote agent.
+     * Deliver bytes sent from the remote agent.
      */
     void consume(byte[] buffer, int off, int len);
 
     /** Close the agent.
      *
-     * This agent must be closed because the communication has been broken.
+     * This will be closed if communications can't be continued.
      */
     void closeAgent();
-
-    default void go(MultiplexTunnel multiplexTunnel, boolean isServer, boolean first) { }
 }
