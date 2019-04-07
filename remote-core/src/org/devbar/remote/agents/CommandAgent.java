@@ -4,6 +4,7 @@ import org.devbar.remote.keyboard.Keyboard;
 import org.devbar.remote.keyboard.KeyboardReader;
 import org.devbar.remote.listeners.SocketListener;
 import org.devbar.remote.tunnels.MultiplexTunnel;
+import org.devbar.remote.utils.Bytes;
 
 import java.util.Scanner;
 import java.util.SortedMap;
@@ -15,7 +16,7 @@ public class CommandAgent implements Agent, KeyboardReader {
     private int kbdId;
     private MultiplexTunnel multiplexTunnel;
     private Writer writer;
-    private SortedMap<String, SocketListener> listeners = new TreeMap();
+    private SortedMap<String, SocketListener> listeners = new TreeMap<>();
 
     @Override
     public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
@@ -28,9 +29,9 @@ public class CommandAgent implements Agent, KeyboardReader {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         if (!isServer) {
-            System.out.print(new String(buffer, off, len));
+            System.out.print(bytes.toStr());
         }
     }
 

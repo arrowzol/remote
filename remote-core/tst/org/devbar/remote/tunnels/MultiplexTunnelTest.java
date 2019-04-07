@@ -3,6 +3,7 @@ package org.devbar.remote.tunnels;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MultiplexTunnelTest extends MockMultiplexSystem {
 
@@ -30,22 +31,22 @@ public class MultiplexTunnelTest extends MockMultiplexSystem {
             assertEquals(0, agent1X.closeAgentCount, assertContext);
             assertEquals(1, agent1X.goCountFirst, assertContext);
             assertEquals(0, agent1X.goCountSecond, assertContext);
-            assertEquals(0, agent1X.head, assertContext);
+            assertTrue(agent1X.contents.empty(), assertContext);
 
             assertEquals(0, agent2X.closeAgentCount, assertContext);
             assertEquals(0, agent2X.goCountFirst, assertContext);
             assertEquals(1, agent2X.goCountSecond, assertContext);
-            assertEquals(0, agent2X.head, assertContext);
+            assertTrue(agent2X.contents.empty(), assertContext);
 
             assertEquals(0, agent1Y.closeAgentCount, assertContext);
             assertEquals(1, agent1Y.goCountFirst, assertContext);
             assertEquals(0, agent1Y.goCountSecond, assertContext);
-            assertEquals(0, agent1Y.head, assertContext);
+            assertTrue(agent1Y.contents.empty(), assertContext);
 
             assertEquals(0, agent2Y.closeAgentCount, assertContext);
             assertEquals(0, agent2Y.goCountFirst, assertContext);
             assertEquals(1, agent2Y.goCountSecond, assertContext);
-            assertEquals(0, agent2Y.head, assertContext);
+            assertTrue(agent2Y.contents.empty(), assertContext);
 
             String testString1 = "abcdefg";
             String testString2 = "12345";

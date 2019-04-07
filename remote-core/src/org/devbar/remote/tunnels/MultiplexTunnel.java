@@ -13,11 +13,12 @@ import java.util.concurrent.ConcurrentMap;
  * When an agent closes.
  */
 public class MultiplexTunnel implements Tunnel {
+    private static final int CMDID_BYTES = 1;
     private static final int CHANNEL_BYTES = 2;
     private static final int LENGTH_BYTES = 2;
     private static final int HEADER_BYTES = CHANNEL_BYTES + LENGTH_BYTES;
     private static final int AGENT_BYTES = 2;
-    private static final int CMD_BYTES = 1 + CHANNEL_BYTES + AGENT_BYTES;
+    private static final int CMD_BYTES = CMDID_BYTES + CHANNEL_BYTES + AGENT_BYTES;
     private static final int MAX_CHANNELS = 1 << (8* CHANNEL_BYTES);
 
     private static final byte CMD_AGENT_KILL = 0;
@@ -35,25 +36,16 @@ public class MultiplexTunnel implements Tunnel {
     private final ConcurrentMap<Integer, Agent> agents;
 
     private Agent consumerAgent;
+    private boolean waitingForHeader = true;
     private int consumerNeeded;
-    private int headerNeeded = HEADER_BYTES;
-    private final byte[] consumeHeader = new byte[HEADER_BYTES + CMD_BYTES];
-    private int consumerBufferHead;
-    private byte[] consumerBuffer;
 
 
-    public MultiplexTunnel(int bufferSize) {
-        if (bufferSize < CMD_BYTES) {
-            bufferSize = CMD_BYTES;
-        }
-        consumerBuffer = new byte[bufferSize];
-
+    public MultiplexTunnel() {
         agents = new ConcurrentHashMap<>();
         agents.put(0, new Agent() {
             @Override
-            public void consume(byte[] buffer, int off, int len) {
-                Bytes bytes = new Bytes(buffer, off, len);
-                int cmd = bytes.readInt(1);
+            public void consume(Bytes bytes) {
+                int cmd = bytes.readInt(CMDID_BYTES);
                 int channel = bytes.readInt(CHANNEL_BYTES);
                 int agentId = bytes.readInt(AGENT_BYTES);
                 switch (cmd) {
@@ -167,83 +159,42 @@ public class MultiplexTunnel implements Tunnel {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         while (true) {
-            if (headerNeeded > 0) {
-                int copyLen = headerNeeded;
-                if (len < copyLen) {
-                    copyLen = len;
+            int size = bytes.size();
+            if (waitingForHeader) {
+                if (size < HEADER_BYTES) {
+                    return;
                 }
-                System.arraycopy(buffer, off, consumeHeader, HEADER_BYTES - headerNeeded, copyLen);
-                off += copyLen;
-                len -= copyLen;
-                headerNeeded -= copyLen;
-
-                if (headerNeeded == 0) {
-                    Bytes bytes = new Bytes(consumeHeader, 0, 100);
-                    int channel = bytes.readInt(CHANNEL_BYTES);
-                    consumerNeeded = bytes.readInt(LENGTH_BYTES);
-                    consumerAgent = agents.get(channel);
-                }
+                int channel = bytes.readInt(CHANNEL_BYTES);
+                consumerNeeded = bytes.readInt(LENGTH_BYTES);
+                consumerAgent = agents.get(channel);
+                waitingForHeader = false;
+                size = bytes.size();
             }
 
-            if (len == 0) {
-                break;
+            // If there is no agent, ignore consumerNeeded bytes
+            if (consumerAgent == null) {
+                consumerNeeded -= bytes.skip(consumerNeeded);
             }
 
-            if (consumerNeeded > 0) {
-                // If there is no agent, ignore consumerNeeded bytes
-                if (consumerAgent == null) {
-                    off += consumerNeeded;
-                    len -= consumerNeeded;
-                    consumerNeeded = 0;
+            // If one complete message is in the copy, send it to the agent
+            else if (size >= consumerNeeded || bytes.full()) {
+                long snapshot = bytes.takeSnapshot();
+                int actualSize = bytes.setSize(consumerNeeded);
+                consumerNeeded -= actualSize;
+                try {
+                    consumerAgent.consume(bytes);
+                } catch (Throwable t) {
+                    t.printStackTrace();
                 }
-
-                // If one complete message is in the copy, send it to the agent
-                else if (consumerBufferHead == 0 && len >= consumerNeeded) {
-                    try {
-                        consumerAgent.consume(buffer, off, consumerNeeded);
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                    }
-
-                    off += consumerNeeded;
-                    len -= consumerNeeded;
-                    consumerNeeded = 0;
-                }
-
-                // Copy into the consumerBuffer
-                else {
-                    int copyLen = consumerBuffer.length - consumerBufferHead;
-                    if (copyLen > len) {
-                        copyLen = len;
-                    }
-                    if (copyLen > consumerNeeded) {
-                        copyLen = consumerNeeded;
-                    }
-                    System.arraycopy(buffer, off, consumerBuffer, consumerBufferHead, copyLen);
-                    consumerBufferHead += copyLen;
-                    off += copyLen;
-                    len -= copyLen;
-                    consumerNeeded -= copyLen;
-
-                    // If consumerBuffer is full, or there is a complete message, send it to the agent
-                    if (consumerBufferHead == consumerBuffer.length || consumerNeeded == 0) {
-                        try {
-                            consumerAgent.consume(consumerBuffer, 0, consumerBufferHead);
-                        } catch (Throwable t) {
-                            t.printStackTrace();
-                        }
-                        consumerBufferHead = 0;
-                    }
-                }
-
-                if (consumerNeeded == 0) {
-                    headerNeeded = HEADER_BYTES;
-                }
+                bytes.restoreSnapshot(snapshot);
+                bytes.skip(actualSize);
             }
 
-            if (len == 0) {
+            if (consumerNeeded == 0) {
+                waitingForHeader = true;
+            } else {
                 break;
             }
         }

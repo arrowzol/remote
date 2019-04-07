@@ -3,6 +3,7 @@ package org.devbar.remote.agents;
 import org.devbar.remote.keyboard.Keyboard;
 import org.devbar.remote.keyboard.KeyboardReader;
 import org.devbar.remote.tunnels.MultiplexTunnel;
+import org.devbar.remote.utils.Bytes;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,9 +21,9 @@ public class ChatAgent implements Agent, KeyboardReader {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         System.out.print("(remote chat) ");
-        System.out.print(new String(buffer, 0, len, StandardCharsets.UTF_8));
+        System.out.print(bytes.toStr());
         if (hasFocus) {
             System.out.print(": ");
         }

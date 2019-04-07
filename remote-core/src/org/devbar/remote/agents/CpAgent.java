@@ -5,9 +5,13 @@ import org.devbar.remote.utils.Bytes;
 
 import java.io.*;
 
+import static org.devbar.remote.tunnels.SocketTunnel.MAX_FAST_MESSAGE_SIZE;
+
 public class CpAgent extends Thread implements Agent {
 
-    private enum Stage {ZERO, INIT, SEND, RECEIVE} ;
+    public static final int MAX_TX_BUFFER_SIZE = 1024 * 8;
+
+    private enum Stage {ZERO, INIT, SEND, RECEIVE}
 
     private String from;
     private String to;
@@ -16,7 +20,6 @@ public class CpAgent extends Thread implements Agent {
     private Stage stage = Stage.ZERO;
     private boolean first;
     private boolean isSender;
-    private Bytes initBytes;
 
     private InputStream fileInputStream;
     private OutputStream fileOutputStream;
@@ -45,7 +48,6 @@ public class CpAgent extends Thread implements Agent {
             }
             init();
         } else {
-            initBytes = new Bytes(1024);
             stage = Stage.INIT;
         }
     }
@@ -72,32 +74,27 @@ public class CpAgent extends Thread implements Agent {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         switch (stage) {
             case INIT:
-                initBytes.copy(buffer, off, len); // TODO: overflow
+                from = bytes.readStr();
                 if (from == null) {
-                    from = initBytes.readStr();
-                    if (from == null) {
-                        return;
-                    }
+                    closeAgent();
                 }
+                to = bytes.readStr();
                 if (to == null) {
-                    to = initBytes.readStr();
-                    if (to == null) {
-                        return;
-                    }
+                    closeAgent();
                 }
-                Boolean nullableReverse = initBytes.readBool();
+                Boolean nullableReverse = bytes.readBool();
                 if (nullableReverse == null) {
-                    return;
+                    closeAgent();
                 }
                 reverse = nullableReverse;
                 init();
                 break;
             case RECEIVE:
                 try {
-                    fileOutputStream.write(buffer, off, len);
+                    bytes.write(fileOutputStream);
                 } catch (IOException e) {
                     this.closeAgent();
                 }
@@ -109,7 +106,11 @@ public class CpAgent extends Thread implements Agent {
 
     @Override
     public void run() {
-        byte[] bytes = new byte[1024*16];
+        int bufferSize = MAX_FAST_MESSAGE_SIZE/2;
+        if (bufferSize > MAX_TX_BUFFER_SIZE) {
+            bufferSize = MAX_TX_BUFFER_SIZE;
+        }
+        byte[] bytes = new byte[bufferSize];
         try {
             while (true) {
                 int len = fileInputStream.read(bytes, 0, bytes.length);

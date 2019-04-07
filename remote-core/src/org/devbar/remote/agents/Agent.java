@@ -1,6 +1,7 @@
 package org.devbar.remote.agents;
 
 import org.devbar.remote.tunnels.MultiplexTunnel;
+import org.devbar.remote.utils.Bytes;
 
 /** An agent abstracts pairs of communications channels.
  *
@@ -27,7 +28,7 @@ public interface Agent {
      *
      * Deliver bytes sent from the remote agent.
      */
-    void consume(byte[] buffer, int off, int len);
+    void consume(Bytes bytes);
 
     /** Close the agent.
      *

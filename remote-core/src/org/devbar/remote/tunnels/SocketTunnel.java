@@ -2,6 +2,7 @@ package org.devbar.remote.tunnels;
 
 import org.devbar.remote.agents.Agent;
 import org.devbar.remote.agents.Writer;
+import org.devbar.remote.utils.Bytes;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,6 +10,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 
 public class SocketTunnel extends Thread implements Tunnel {
+    public static final int MAX_FAST_MESSAGE_SIZE = 1024*32;
     private static int i;
     private final Socket s;
     private final InputStream is;
@@ -31,14 +33,14 @@ public class SocketTunnel extends Thread implements Tunnel {
     @Override
     public void run() {
         try {
-            byte[] buffer = new byte[1024];
+            Bytes buffer = new Bytes(MAX_FAST_MESSAGE_SIZE);
             while (true) {
-                int len = is.read(buffer, 0, buffer.length);
-                if (len == -1) {
+                if (!buffer.read(is)) {
                     break;
                 }
                 try {
-                    agent.consume(buffer, 0, len);
+                    agent.consume(buffer);
+                    buffer.clear();
                 } catch (Throwable t) {
                     t.printStackTrace();
                 }
@@ -64,7 +66,7 @@ public class SocketTunnel extends Thread implements Tunnel {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         throw new RuntimeException("Should never be called");
     }
 

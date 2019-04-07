@@ -2,6 +2,7 @@ package org.devbar.remote.tunnels;
 
 import org.devbar.remote.agents.Agent;
 import org.devbar.remote.agents.Writer;
+import org.devbar.remote.utils.Bytes;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,8 +13,7 @@ public class MockAgentBase implements Agent {
     public int closeAgentCount;
     public int goCountFirst;
     public int goCountSecond;
-    public int head;
-    public byte[] contents = new byte[1024];
+    public Bytes contents = new Bytes(1024);
 
     public void write(String testMessage) throws IOException {
         byte[] testBytes = testMessage.getBytes(StandardCharsets.UTF_8);
@@ -21,15 +21,14 @@ public class MockAgentBase implements Agent {
     }
 
     public String read() {
-        String value = new String(contents, 0, head, StandardCharsets.UTF_8);
-        head = 0;
+        String value = contents.toStr();
+        contents.clear();
         return value;
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
-        System.arraycopy(buffer, off, contents, head, len);
-        head += len;
+    public void consume(Bytes bytes) {
+        contents.copy(bytes);
     }
 
     @Override

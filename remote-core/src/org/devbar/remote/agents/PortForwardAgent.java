@@ -67,14 +67,13 @@ public class PortForwardAgent extends Thread implements Agent {
     }
 
     @Override
-    public void consume(byte[] buffer, int off, int len) {
+    public void consume(Bytes bytes) {
         try {
             if (started) {
-                    os.write(buffer, off, len);
+                bytes.write(os);
             } else {
                 started = true;
-                Bytes bytes = new Bytes(buffer, off, PORT_BYTES);
-                remotePort = bytes.readInt(len);
+                remotePort = bytes.readInt(PORT_BYTES);
                 SocketFactory sf = SocketFactory.getDefault();
                 socket = sf.createSocket("localhost", remotePort);
                 is = socket.getInputStream();
