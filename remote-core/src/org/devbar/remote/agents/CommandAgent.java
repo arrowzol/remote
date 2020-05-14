@@ -82,10 +82,8 @@ public class CommandAgent implements Agent, KeyboardReader {
     }
 
     @Override
-    public synchronized void closeAgent() {
-        if (writer != null) {
-            writer.closeWriter();
-            writer = null;
+    public synchronized void closeAgent(int reason) {
+        if (isServer) {
             Keyboard.kbd.unregister(kbdId);
         }
     }

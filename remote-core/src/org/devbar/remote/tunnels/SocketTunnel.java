@@ -17,6 +17,7 @@ public class SocketTunnel extends Thread implements Tunnel {
     private final OutputStream os;
     private Agent agent;
     private boolean isServer;
+    private boolean agentClosed;
 
     public SocketTunnel(Socket s, boolean isServer) throws IOException {
         this.isServer = isServer;
@@ -27,7 +28,7 @@ public class SocketTunnel extends Thread implements Tunnel {
 
     @Override
     public void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first) {
-        // never called
+        throw new RuntimeException("Should never be called");
     }
 
     @Override
@@ -48,14 +49,19 @@ public class SocketTunnel extends Thread implements Tunnel {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
-            closeAgent();
+            synchronized (agent) {
+                if (!agentClosed) {
+                    agent.closeAgent(-1);
+                    agentClosed = true;
+                }
+            }
         }
     }
 
     @Override
     public void registerAgent(Agent agent) {
         if (this.agent != null) {
-            throw new RuntimeException("SocketTunnel can have only one upTunnel");
+            throw new RuntimeException("SocketTunnel can have only one agent");
         }
 
         this.agent = agent;
@@ -71,18 +77,26 @@ public class SocketTunnel extends Thread implements Tunnel {
     }
 
     @Override
-    public synchronized void write(byte[] buffer, int off, int len) throws IOException {
+    public synchronized boolean write(byte[] buffer, int off, int len) throws IOException {
         os.write(buffer, off, len);
+        return true;
     }
 
     @Override
-    public void closeAgent() {
-        closeWriter();
+    public void closeAgent(int reason) {
+        throw new RuntimeException("Should never be called");
+        // closeWriter(reason);
     }
 
     @Override
-    public void closeWriter() {
+    public void closeWriter(int reason) {
+        boolean alreadyClosed;
+        synchronized (agent) {
+            alreadyClosed = agentClosed;
+            agentClosed = true;
+        }
         System.out.println("Socket Closed");
+        // TODO: transmit reason to remote system
         try {
             s.close();
         } catch (IOException e) {
@@ -98,6 +112,8 @@ public class SocketTunnel extends Thread implements Tunnel {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        agent.closeAgent();
+        if (!alreadyClosed) {
+            agent.closeAgent(reason);
+        }
     }
 }

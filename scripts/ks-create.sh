@@ -1,5 +1,8 @@
 #!/bin/sh
 
+NAME=zounds.mooo.com
+VERSION=.2
+
 openssl pkcs12 -export \
     -in ../certs/ca.cert.pem -inkey ../private/ca.key.pem \
     -out caroot.p12 -name caroot
@@ -10,7 +13,7 @@ openssl pkcs12 -export \
     -CAfile ../certs/ca.cert.pem -caname caroot
 
 openssl pkcs12 -export \
-    -in ../intermediate/certs/zounds.mooo.com.cert.pem -inkey ../intermediate/private/zounds.mooo.com.key.pem \
+    -in ../intermediate/certs/${NAME}${VERSION}.cert.pem -inkey ../intermediate/private/${NAME}${VERSION}.key.pem \
     -out zounds.p12 -name zounds \
     -CAfile ../intermediate/certs/intermediate.cert.pem -caname caintermediate
 

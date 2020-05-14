@@ -32,7 +32,7 @@ public class MockAgentBase implements Agent {
     }
 
     @Override
-    public void closeAgent() {
+    public void closeAgent(int reason) {
         closeAgentCount++;
     }
 

@@ -9,6 +9,13 @@ import static org.devbar.remote.tunnels.SocketTunnel.MAX_FAST_MESSAGE_SIZE;
 
 public class CpAgent extends Thread implements Agent {
 
+    private static final int REASON_DONE = 1;
+    private static final int REASON_ERROR = 2;
+    private static final int REASON_DUPLICATE = 3;
+    private static final int REASON_MISSING = 4;
+    private static final int REASON_EXISTS = 5;
+    private static final int REASON_FILE_IO = 6;
+
     public static final int MAX_TX_BUFFER_SIZE = 1024 * 8;
 
     private enum Stage {ZERO, INIT, SEND, RECEIVE}
@@ -44,6 +51,7 @@ public class CpAgent extends Thread implements Agent {
                 Bytes.writeStr(writer, to);
                 Bytes.writeBool(writer, reverse);
             } catch (IOException e) {
+                writer.closeWriter(REASON_ERROR);
                 e.printStackTrace();
             }
             init();
@@ -53,22 +61,28 @@ public class CpAgent extends Thread implements Agent {
     }
 
     private void init() {
-        isSender = first ^ reverse;
+        // first is the sender (unless reversed)
+        isSender = first != reverse;
         if (isSender) {
             stage = Stage.SEND;
             try {
                 fileInputStream = new BufferedInputStream(new FileInputStream(from));
             } catch (FileNotFoundException e) {
-                closeAgent();
+                writer.closeWriter(REASON_MISSING);
                 return;
             }
             start();
         } else {
             stage = Stage.RECEIVE;
-            try {
-                fileOutputStream = new BufferedOutputStream(new FileOutputStream(from));
-            } catch (FileNotFoundException e) {
-                closeAgent();
+            File toFile = new File(to);
+            if (toFile.exists()) {
+                writer.closeWriter(REASON_EXISTS);
+            } else {
+                try {
+                    fileOutputStream = new BufferedOutputStream(new FileOutputStream(toFile));
+                } catch (FileNotFoundException e) {
+                    writer.closeWriter(REASON_FILE_IO);
+                }
             }
         }
     }
@@ -79,24 +93,25 @@ public class CpAgent extends Thread implements Agent {
             case INIT:
                 from = bytes.readStr();
                 if (from == null) {
-                    closeAgent();
+                    writer.closeWriter(REASON_ERROR);
                 }
                 to = bytes.readStr();
                 if (to == null) {
-                    closeAgent();
+                    writer.closeWriter(REASON_ERROR);
                 }
                 Boolean nullableReverse = bytes.readBool();
                 if (nullableReverse == null) {
-                    closeAgent();
+                    writer.closeWriter(REASON_ERROR);
+                } else {
+                    reverse = nullableReverse;
+                    init();
                 }
-                reverse = nullableReverse;
-                init();
                 break;
             case RECEIVE:
                 try {
                     bytes.write(fileOutputStream);
                 } catch (IOException e) {
-                    this.closeAgent();
+                    writer.closeWriter(REASON_FILE_IO);
                 }
                 break;
             case SEND:
@@ -115,32 +130,34 @@ public class CpAgent extends Thread implements Agent {
             while (true) {
                 int len = fileInputStream.read(bytes, 0, bytes.length);
                 if (len == 0) {
-                    return;
+                    writer.closeWriter(REASON_DONE);
+                    break;
                 }
-                writer.write(bytes, 0, len);
+                if (!writer.write(bytes, 0, len)) {
+                    break;
+                }
             }
         } catch (IOException e) {
-            closeAgent();
+            writer.closeWriter(REASON_FILE_IO);
         }
-        // TODO: ??
     }
 
     @Override
-    public synchronized void closeAgent() {
-        if (writer != null) {
-            this.interrupt();
-            writer.closeWriter();
-            writer = null;
-            try {
-                fileOutputStream.close();
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                fileInputStream.close();
-            } catch (Exception e) {
-                // ignore
-            }
+    public synchronized void closeAgent(int reason) {
+        this.interrupt();
+        try {
+            fileOutputStream.close();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            fileInputStream.close();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        if (reason != REASON_DONE) {
+            // delete the file
         }
     }
 }

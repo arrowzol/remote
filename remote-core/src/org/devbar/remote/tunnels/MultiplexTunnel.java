@@ -17,17 +17,16 @@ public class MultiplexTunnel implements Tunnel {
     private static final int CHANNEL_BYTES = 2;
     private static final int LENGTH_BYTES = 2;
     private static final int HEADER_BYTES = CHANNEL_BYTES + LENGTH_BYTES;
-    private static final int AGENT_BYTES = 2;
-    private static final int CMD_BYTES = CMDID_BYTES + CHANNEL_BYTES + AGENT_BYTES;
+    private static final int CMD_PARAM_BYTES = 2;
+    private static final int CMD_BYTES = CMDID_BYTES + CHANNEL_BYTES + CMD_PARAM_BYTES;
     private static final int MAX_CHANNELS = 1 << (8* CHANNEL_BYTES);
 
     private static final byte CMD_AGENT_KILL = 0;
-    private static final byte CMD_AGENT_DEAD = 1;
     private static final byte CMD_AGENT_NEW = 2;
     private static final byte CMD_AGENT_NEW_ACK1 = 3;
     private static final byte CMD_AGENT_NEW_ACK2 = 4;
 
-    private Writer masterWriter;
+    private Writer parentWriter;
     private boolean isServer;
 
     private int startChannel;
@@ -42,39 +41,47 @@ public class MultiplexTunnel implements Tunnel {
 
     public MultiplexTunnel() {
         agents = new ConcurrentHashMap<>();
+
+        // Create the "root" agent, which is the only agent registered with the SocketTunnel.
+        // It is the multiplexer.
         agents.put(0, new Agent() {
+
             @Override
             public void consume(Bytes bytes) {
                 int cmd = bytes.readInt(CMDID_BYTES);
                 int channel = bytes.readInt(CHANNEL_BYTES);
-                int agentId = bytes.readInt(AGENT_BYTES);
+                int cmdParam = bytes.readInt(CMD_PARAM_BYTES);
                 switch (cmd) {
-                    case CMD_AGENT_KILL: {
-                        Agent agent = agents.get(channel);
+                    case CMD_AGENT_KILL: { // KILL(channel, reason): kill a remote agent
+                        Agent agent = agents.remove(channel);
                         if (agent != null) {
-                            agent.closeAgent();
+                            agent.closeAgent(cmdParam);
                         }
-                        sendCmd(CMD_AGENT_KILL, channel, 0);
                         break;
                     }
-                    case CMD_AGENT_DEAD:
-                        agents.remove(channel);
-                        break;
-                    case CMD_AGENT_NEW: {
-                        Agent agent = AgentFactory.agentFactory.createAgent(agentId);
+                    case CMD_AGENT_NEW: { // NEW(channel, agentId): create but don't start a remote agent, send ACK1
+                        Agent agent = AgentFactory.agentFactory.createAgent(cmdParam);
                         if (agent != null) {
                             agents.put(channel, agent);
-                            sendCmd(CMD_AGENT_NEW_ACK1, channel, 0);
+                            sendCmd(CMD_AGENT_NEW_ACK1, channel, 0); // success
+                        } else {
+                            sendCmd(CMD_AGENT_NEW_ACK1, channel, 1); // fail
+
                         }
                         break;
                     }
-                    case CMD_AGENT_NEW_ACK1: {
-                        Agent agent = agents.get(channel);
-                        sendCmd(CMD_AGENT_NEW_ACK2, channel, 0);
-                        agent.init(MultiplexTunnel.this, createWriter(channel), isServer, true);
+                    case CMD_AGENT_NEW_ACK1: { // ACK1(channel, success/fail): start local agent, send ACK2
+                        if (cmdParam == 0) {
+                            Agent agent = agents.get(channel);
+                            sendCmd(CMD_AGENT_NEW_ACK2, channel, 0);
+                            agent.init(MultiplexTunnel.this, createWriter(channel), isServer, true);
+                        } else {
+                            agents.remove(channel);
+                            System.out.println("REMOTE AGENT CREAE FAILED");
+                        }
                         break;
                     }
-                    case CMD_AGENT_NEW_ACK2: {
+                    case CMD_AGENT_NEW_ACK2: { // ACK2(channel): start a remote agent
                         Agent agent = agents.get(channel);
                         agent.init(MultiplexTunnel.this, createWriter(channel), isServer, false);
                         break;
@@ -83,7 +90,7 @@ public class MultiplexTunnel implements Tunnel {
             }
 
             @Override
-            public void closeAgent() {
+            public void closeAgent(int reason) {
             }
 
             @Override
@@ -93,22 +100,22 @@ public class MultiplexTunnel implements Tunnel {
     }
 
 
-    /* Format: channel(CHANNEL_BYTES) - length - command(1)
+    /* Format: [ header[ channel=0 | length=CMD_BYTES ] | cmd | channel | param ]
      */
-    private void sendCmd(byte cmd, int channel, int agentId) {
+    private void sendCmd(byte cmd, int channel, int cmdParam) {
         byte[] command = new byte[HEADER_BYTES + CMD_BYTES];
 
         // Header of message: channel 0 (by default), length
         Bytes.writeInt(command, CHANNEL_BYTES, LENGTH_BYTES, CMD_BYTES);
 
-        // Body of message: command + channel + agentId
+        // Body of message: command + channel + cmdParam
         command[HEADER_BYTES] = cmd;
         Bytes.writeInt(command, HEADER_BYTES + 1, CHANNEL_BYTES, channel);
-        Bytes.writeInt(command, HEADER_BYTES + 1 + CHANNEL_BYTES, AGENT_BYTES, agentId);
+        Bytes.writeInt(command, HEADER_BYTES + 1 + CHANNEL_BYTES, CMD_PARAM_BYTES, cmdParam);
 
-        synchronized (masterWriter) {
+        synchronized (parentWriter) {
             try {
-                masterWriter.write(command, 0, command.length);
+                parentWriter.write(command, 0, command.length);
             } catch (IOException e) {
                 // ignore
             }
@@ -137,23 +144,25 @@ public class MultiplexTunnel implements Tunnel {
             private boolean open = true;
 
             @Override
-            public synchronized void write(byte[] buffer, int start, int len) throws IOException {
+            public synchronized boolean write(byte[] buffer, int start, int len) throws IOException {
                 if (open) {
                     Bytes.writeInt(header, CHANNEL_BYTES, LENGTH_BYTES, len);
-                    synchronized (masterWriter) {
-                        masterWriter.write(header, 0, HEADER_BYTES);
-                        masterWriter.write(buffer, start, len);
+                    synchronized (parentWriter) {
+                        parentWriter.write(header, 0, HEADER_BYTES);
+                        parentWriter.write(buffer, start, len);
                     }
                 }
+                return open;
             }
 
             @Override
-            public synchronized void closeWriter() {
-                if (open) {
-                    open = false;
-                    sendCmd(CMD_AGENT_KILL, channel, 0);
-                    sendCmd(CMD_AGENT_DEAD, channel, 0);
+            public synchronized void closeWriter(int reason) {
+                open = false;
+                Agent agent = agents.remove(channel);
+                if (agent != null) {
+                    agent.closeAgent(reason);
                 }
+                sendCmd(CMD_AGENT_KILL, channel, reason);
             }
         };
     }
@@ -201,9 +210,9 @@ public class MultiplexTunnel implements Tunnel {
     }
 
     @Override
-    public void closeAgent() {
+    public void closeAgent(int reason) {
         for (Agent agent : agents.values()) {
-            agent.closeAgent();
+            agent.closeAgent(reason);
         }
     }
 
@@ -218,16 +227,16 @@ public class MultiplexTunnel implements Tunnel {
             endChannel = MAX_CHANNELS;
         }
         nextChannel = startChannel;
-        this.masterWriter = writer;
+        this.parentWriter = writer;
     }
 
     @Override
-    public void closeWriter() {
+    public void closeWriter(int reason) {
         throw new RuntimeException("Should never happen");
     }
 
     @Override
-    public void write(byte[] buffer, int start, int len) {
+    public boolean write(byte[] buffer, int start, int len) {
         throw new RuntimeException("Should never happen");
     }
 }

@@ -5,7 +5,12 @@ import java.io.IOException;
 /** This is given to an {@link Agent} to allow it to send messages to its sibling agent.
  */
 public interface Writer {
-    void write(byte[] buffer, int start, int len) throws IOException;
-    default void write(byte[] buffer) throws IOException { this.write(buffer, 0, buffer.length);}
-    void closeWriter();
+    boolean write(byte[] buffer, int start, int len) throws IOException;
+    default boolean write(byte[] buffer) throws IOException { return this.write(buffer, 0, buffer.length);}
+
+    /** The agent can call this to close the channel.  Both agents will be closed after this call is made.
+     *
+     * @param reason The reason for closing.  Negative values are reserved for I/O issues.
+     */
+    void closeWriter(int reason);
 }

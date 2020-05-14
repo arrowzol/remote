@@ -96,7 +96,6 @@ stateOrProvinceName_default     = California
 localityName_default            = San Diego
 0.organizationName_default      = Barnhart Home
 organizationalUnitName_default  = Devin Barnhart
-#emailAddress_default            = arrowzol@yahoo.com
 
 [ v3_ca ]
 # Extensions for a typical CA (`man x509v3_config`).
@@ -368,7 +367,9 @@ cat intermediate/certs/intermediate.cert.pem \
 chmod 444 intermediate/certs/ca-chain.cert.pem
 
 
+########################################
 ### PART 3 - create server cert
+########################################
 
 NAME=zounds.mooo.com
 
@@ -383,17 +384,17 @@ openssl genrsa \
 chmod 400 intermediate/private/${NAME}.key.pem
 
 
-# generate server CSR, connected to the serever key
+# generate server CSR, connected to the server key
 
 openssl req -config intermediate/openssl.cnf \
     -key intermediate/private/${NAME}.key.pem \
     -new -sha256 -out intermediate/csr/${NAME}.csr.pem
 
 
-# CA intermediate cert signs server cert, expires in 1 year
+# CA intermediate cert signs server cert, expires in 10 years (I tried 1, but a year later I regreted that)
 
 openssl ca -config intermediate/openssl.cnf \
-    -extensions server_cert -days 375 -notext -md sha256 \
+    -extensions server_cert -days 3650 -notext -md sha256 \
     -in intermediate/csr/${NAME}.csr.pem \
     -out intermediate/certs/${NAME}.cert.pem
 

@@ -22,7 +22,7 @@ public class Client {
         socket.startHandshake();
 
         Tunnel tunnel = new SocketTunnel(socket, false);
-        tunnel.registerAgent(new MultiplexTunnel(0));
+        tunnel.registerAgent(new MultiplexTunnel());
     }
 
     private static SSLContext getSslContext() throws Exception {

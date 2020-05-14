@@ -10,6 +10,9 @@ import java.nio.charset.StandardCharsets;
 
 public class ChatAgent implements Agent, KeyboardReader {
 
+    private static final int REASON_BYE = 1;
+    private static final int REASON_IO = 2;
+
     private int keyId;
     private boolean hasFocus;
     private Writer writer;
@@ -45,17 +48,14 @@ public class ChatAgent implements Agent, KeyboardReader {
 
     @Override
     public synchronized boolean keyboardInput(String line) {
-        if (writer == null) {
-            return false;
-        }
         if (line.equals("bye")) {
-            writer.closeWriter();
+            writer.closeWriter(REASON_BYE);
         } else {
             byte[] buffer = (line + "\n").getBytes(StandardCharsets.UTF_8);
             try {
                 writer.write(buffer, 0, buffer.length);
             } catch (IOException e) {
-                closeAgent();
+                writer.closeWriter(REASON_IO);
             }
             if (hasFocus) {
                 System.out.print(": ");
@@ -65,11 +65,8 @@ public class ChatAgent implements Agent, KeyboardReader {
     }
 
     @Override
-    public synchronized void closeAgent() {
-        if (writer != null) {
-            writer.closeWriter();
-            writer = null;
-            Keyboard.kbd.unregister(keyId);
-        }
+    public synchronized void closeAgent(int reason) {
+        System.out.println("Chat closed: " + (reason == REASON_BYE ? "BYE" : "I/O issue"));
+        Keyboard.kbd.unregister(keyId);
     }
 }

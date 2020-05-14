@@ -98,8 +98,8 @@ public class PortForwardAgentTest extends MockMultiplexSystem {
                 }
             }
             sl.close();
-            testTunnelA.closeAgent();
-            testTunnelB.closeAgent();
+            testTunnelA.closeAgent(0);
+            testTunnelB.closeAgent(0);
 
             xfer.interrupt();
         }

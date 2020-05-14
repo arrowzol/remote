@@ -26,12 +26,13 @@ public class Server {
                 socket.startHandshake();
                 System.out.println("Accept");
                 Tunnel socketTunnel = new SocketTunnel(socket, true);
-                MultiplexTunnel multiplexTunnel = new MultiplexTunnel(0);
+                MultiplexTunnel multiplexTunnel = new MultiplexTunnel();
                 socketTunnel.registerAgent(multiplexTunnel);
                 multiplexTunnel.registerAgent(new CommandAgent());
                 multiplexTunnel.registerAgent(new ChatAgent());
             } catch (Exception e) {
                 e.printStackTrace();
+                break;
             }
         }
     }

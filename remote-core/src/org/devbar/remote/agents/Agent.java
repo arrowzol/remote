@@ -7,7 +7,7 @@ import org.devbar.remote.utils.Bytes;
  *
  * Agents come in pairs, one on each side of the client-server system.  When an agent is created on one side, a
  * corresponding agent is created on the other side and communications between the two is done by calling the writer's
- * {@link Writer#write(byte[], int, int)} method, which is delivered by calling the {@link #consume(byte[], int, int)}
+ * {@link Writer#write(byte[], int, int)} method, which is delivered by calling the {@link #consume(Bytes)}
  * method on the other side.  Bytes are not guaranteed to be delivered without being split into multiple consume events.
  */
 public interface Agent {
@@ -18,9 +18,9 @@ public interface Agent {
      * @param multiplexTunnel The multiplexTunnel in charge, can be null if there is none.
      * @param writer The writer this agent should use.
      * @param isServer This agent was created in the server.
-     * @param first This agent was the first of the pair created.
+     * @param isFirst This agent was the first of the pair created.
      */
-    void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean first);
+    void init(MultiplexTunnel multiplexTunnel, Writer writer, boolean isServer, boolean isFirst);
 
     default boolean needBuffering() { return false; }
 
@@ -32,7 +32,10 @@ public interface Agent {
 
     /** Close the agent.
      *
-     * This will be closed if communications can't be continued.
+     * This will be called if communications can't be continued.  This is called after all communication is closed,
+     * and should not call writer.closeWriter in response.
+     *
+     * @param reason The reason passed by the agent that initiated the closure.  Negative numbers used for I/O issues.
      */
-    void closeAgent();
+    void closeAgent(int reason);
 }
