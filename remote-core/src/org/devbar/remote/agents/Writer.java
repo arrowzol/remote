@@ -1,5 +1,7 @@
 package org.devbar.remote.agents;
 
+import org.devbar.remote.utils.Bytes;
+
 import java.io.IOException;
 
 /** This is given to an {@link Agent} to allow it to send messages to its sibling agent.

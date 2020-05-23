@@ -8,7 +8,9 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
 public class Bytes {
-    private byte[] buffer;
+    public static final byte TRUE_BYTE = (byte) 0xFF;
+    public static final byte FALSE_BYTE = (byte) 0xFE;
+    protected byte[] buffer;
     protected int tail;
     protected int head;
 
@@ -46,11 +48,10 @@ public class Bytes {
             head -= tail;
             tail = 0;
         }
-        int copyLen = len;
-        if (copyLen > buffer.length - head) {
+        if (len > buffer.length - head) {
             throw new IllegalArgumentException("buffer overflow");
         }
-        System.arraycopy(copyBuffer, offset, buffer, head, copyLen);
+        System.arraycopy(copyBuffer, offset, buffer, head, len);
         head += len;
     }
 
@@ -68,6 +69,10 @@ public class Bytes {
 
     public void write(OutputStream os) throws IOException {
         os.write(buffer, tail, head - tail);
+    }
+
+    public void write(Writer writer) throws IOException {
+        writer.write(buffer, tail, head - tail);
     }
 
     /////////////////////////////////////////////////////////////////
@@ -99,10 +104,6 @@ public class Bytes {
         tail = (int)(snapshot >> 32);
     }
 
-    public void restoreSnapshotHead(long snapshot) {
-        head = (int)snapshot;
-    }
-
     public void clear() {
         tail = 0;
         head = 0;
@@ -119,7 +120,6 @@ public class Bytes {
     }
 
     public int setSize(int requestedSize) {
-        int oldHead = head;
         head = tail + requestedSize;
         if (head > buffer.length) {
             head = buffer.length;
@@ -156,39 +156,54 @@ public class Bytes {
         }
     }
 
+    public void writeInt(int len, int value) {
+        for (int i = 0; i < len; i++) {
+            buffer[head++] = (byte) value;
+            value /= 0x100;
+        }
+    }
+
     public String readStr() {
-        for (int i=0; i < head; i++) {
+        System.out.println("CP1(" + tail + "," + head + ")");
+        for (int i=tail; i < head; i++) {
             if (buffer[i] == 0) {
                 String str = new String(buffer, 0, i, StandardCharsets.UTF_8);
                 System.arraycopy(buffer, i, buffer, 0, head-i);
-                head -= i;
+                tail = i + 1;
+                System.out.println("CP3(" + tail + "," + head + ")" + (int)buffer[tail-1]);
                 return str;
             }
         }
         return null;
     }
 
-    public static void writeStr(Writer writer, String str) throws IOException {
-        writer.write(str.getBytes(StandardCharsets.UTF_8));
+    public void writeStr(String str) {
+        byte[] strBytes = str.getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(strBytes, 0, buffer, head, strBytes.length);
+        head += strBytes.length;
+        buffer[head++] = 0;
+        System.out.println("CP7(" + tail + "," + head + ")" + (int)buffer[head-1]);
     }
 
     public Boolean readBool() {
+        System.out.println("CP1(" + tail + "," + head + ")");
         if (tail == head) {
             return null;
         }
         byte boolByte = buffer[tail];
         tail++;
-        if (boolByte == (byte)-1) {
+        if (boolByte == TRUE_BYTE) {
             return true;
-        } else if (boolByte == (byte)0) {
+        } else if (boolByte == FALSE_BYTE) {
             return false;
         }
-        throw new IllegalArgumentException("protocol error");
+        throw new IllegalArgumentException("protocol error: " + (int)boolByte);
     }
 
-    public static void writeBool(Writer writer, boolean bool) throws IOException {
-        byte[] buffer = new byte[] {bool ? (byte)-1 : (byte)0};
-        writer.write(buffer);
+    public void writeBool(boolean bool) {
+        System.out.println("CP8(" + tail + "," + head + ")");
+        buffer[head++] = bool ? TRUE_BYTE : FALSE_BYTE;
+        System.out.println("CP9(" + tail + "," + head + ")" + (int)buffer[head-1]);
     }
 
     @Override

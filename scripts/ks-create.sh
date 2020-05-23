@@ -22,14 +22,3 @@ keytool -importkeystore \
         -srckeystore caroot.p12 -srcstoretype PKCS12 -srcstorepass nopal92040 \
         -alias caroot
 
-exit
-
-keytool -importkeystore \
-        -deststorepass changeit -destkeypass changeit -destkeystore server.keystore \
-        -srckeystore intermediate.p12 -srcstoretype PKCS12 -srcstorepass nopal92040 \
-        -alias intermediate
-
-keytool -importkeystore \
-        -deststorepass changeit -destkeypass changeit -destkeystore server.keystore \
-        -srckeystore zounds.p12 -srcstoretype PKCS12 -srcstorepass nopal92040 \
-        -alias zounds

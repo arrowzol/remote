@@ -50,6 +50,10 @@ public class ChatAgent implements Agent, KeyboardReader {
     public synchronized boolean keyboardInput(String line) {
         if (line.equals("bye")) {
             writer.closeWriter(REASON_BYE);
+        } if (line.equals("?") || line.equals("help")) {
+            System.out.println("Chat Agent:");
+            System.out.println("  bye - close this chat session");
+            System.out.println("  type anything - it will be shown to the other");
         } else {
             byte[] buffer = (line + "\n").getBytes(StandardCharsets.UTF_8);
             try {

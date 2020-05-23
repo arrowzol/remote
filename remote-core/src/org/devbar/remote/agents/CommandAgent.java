@@ -59,15 +59,31 @@ public class CommandAgent implements Agent, KeyboardReader {
                         SocketListener listener = listeners.get(scanner.next());
                         listener.close();
                         break;
-                    case "forward":
-                        int listenerPort = Integer.parseInt(scanner.next());
-                        int remotePort = Integer.parseInt(scanner.next());
+                    case "fwd":
+                        String p1 = scanner.next();
+                        int listenerPort;
+                        int remotePort;
+                        if (p1.equals("vnc")) {
+                            listenerPort = 5900;
+                            remotePort = 5900;
+                        } else {
+                            listenerPort = Integer.parseInt(p1);
+                            remotePort = Integer.parseInt(scanner.next());
+                        }
                         listeners.put(
                                 listenerPort + " to " + remotePort,
                                 new SocketListener(multiplexTunnel, listenerPort, remotePort));
                         break;
+                    case "help":
+                    case "?":
+                        System.out.println("command agent:");
+                        System.out.println("  ps - show active commands");
+                        System.out.println("  kill <id> - stop a command");
+                        System.out.println("  fwd vnc - port forward for vnc");
+                        System.out.println("  fwd <listen-port> <remote-port> - start port forwarding");
+                        break;
                     case "cp":
-                        //TODO: start copy agent
+                        multiplexTunnel.registerAgent(new CpAgent(scanner.next(), scanner.next(), false));
                         break;
                     default:
                         System.out.println("unknown command");

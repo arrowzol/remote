@@ -46,10 +46,12 @@ public class CpAgent extends Thread implements Agent {
         this.writer = writer;
         this.first = first;
         if (first) {
+            Bytes initMsg = new Bytes(4096);
+            initMsg.writeStr(from);
+            initMsg.writeStr(to);
+            initMsg.writeBool(reverse);
             try {
-                Bytes.writeStr(writer, from);
-                Bytes.writeStr(writer, to);
-                Bytes.writeBool(writer, reverse);
+                initMsg.write(writer);
             } catch (IOException e) {
                 writer.closeWriter(REASON_ERROR);
                 e.printStackTrace();
@@ -95,11 +97,14 @@ public class CpAgent extends Thread implements Agent {
                 if (from == null) {
                     writer.closeWriter(REASON_ERROR);
                 }
+                System.out.println("f:[" + from + "]");
                 to = bytes.readStr();
                 if (to == null) {
                     writer.closeWriter(REASON_ERROR);
                 }
+                System.out.println("t:[" + to + "]");
                 Boolean nullableReverse = bytes.readBool();
+                System.out.println("rev:[" + nullableReverse + "]");
                 if (nullableReverse == null) {
                     writer.closeWriter(REASON_ERROR);
                 } else {

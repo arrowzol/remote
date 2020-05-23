@@ -14,6 +14,7 @@ public class AgentFactory {
         register(ChatAgent.class);
         register(CommandAgent.class);
         register(PortForwardAgent.class);
+        register(CpAgent.class);
     }
 
     public Agent createAgent(int id) {
